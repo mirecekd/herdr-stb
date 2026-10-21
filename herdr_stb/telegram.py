@@ -4,6 +4,8 @@ import json
 import urllib.error
 import urllib.request
 
+from .mdhtml import md_to_html
+
 LIMIT = 3900  # Telegram hard limit is 4096 characters
 
 
@@ -32,19 +34,32 @@ def call(env, method, params, timeout=15):
         raise RuntimeError("telegram %s unreachable: %s" % (method, e.reason)) from None
 
 
+def _with_fallback(env, method, params, text):
+    """Send formatted (HTML); if Telegram rejects the markup, resend the same text as plain."""
+    text = text[:LIMIT]
+    html_text = md_to_html(text)
+    if len(html_text) <= 4096:
+        try:
+            return call(env, method, dict(params, text=html_text, parse_mode="HTML"))
+        except RuntimeError as e:
+            if "HTTP 400" not in str(e):
+                raise
+    return call(env, method, dict(params, text=text))
+
+
 def send(env, text, rows=None):
-    p = {"chat_id": env["TELEGRAM_CHAT_ID"], "text": text[:LIMIT]}
+    p = {"chat_id": env["TELEGRAM_CHAT_ID"]}
     if rows:
         p["reply_markup"] = {"inline_keyboard": rows}
-    return call(env, "sendMessage", p)["message_id"]
+    return _with_fallback(env, "sendMessage", p, text)["message_id"]
 
 
 def edit(env, message_id, text, rows=None):
     """Replace a message; without rows the keyboard is removed."""
-    p = {"chat_id": env["TELEGRAM_CHAT_ID"], "message_id": message_id, "text": text[:LIMIT],
+    p = {"chat_id": env["TELEGRAM_CHAT_ID"], "message_id": message_id,
          "reply_markup": {"inline_keyboard": rows or []}}
     try:
-        call(env, "editMessageText", p)
+        _with_fallback(env, "editMessageText", p, text)
     except RuntimeError as e:
-        if "HTTP 400" not in str(e):  # 400 also means "message is not modified", which is harmless
+        if "HTTP 400" not in str(e):  # 400 here means "message is not modified", which is harmless
             raise

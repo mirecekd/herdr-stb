@@ -54,6 +54,10 @@ Logs: `journalctl --user -u herdr-stb -f`.
 
 The service polls `agent.list` on the Herdr socket every 2 seconds. A `blocked` state that holds for 2 seconds produces one message with the dialog read from the pane. A turn that ran for 20 seconds or more and then returned to idle or done produces one message with the last assistant text from the pi session file. Events seen while notifications are off are discarded, so switching on never replays old ones.
 
+## Formatting
+
+Agent text is markdown. It is converted to the HTML subset Telegram supports (bold, headings as bold, inline code, code blocks, links). If Telegram rejects a message's markup, it is resent as plain text.
+
 ## Known limits
 
 - Herdr marks a pane `blocked` only if the agent reports it. For pi, the ask-user tool must emit `herdr:blocked`. With `@juicesharp/rpiv-ask-user-question` this needs a small bridge extension, see `examples/herdr-stb-bridge.ts` (copy it to `~/.pi/agent/extensions/`). The same file carries the questions to the service and the answers back.
