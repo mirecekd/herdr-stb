@@ -1,0 +1,11 @@
+[Unit]
+Description=herdr-stb - Herdr simple Telegram bridge
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/herdr-stb run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
