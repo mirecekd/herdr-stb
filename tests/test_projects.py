@@ -62,9 +62,19 @@ class ProjectsTest(unittest.TestCase):
             self.assertFalse(projects.safe_name(bad), bad)
         self.assertTrue(projects.safe_name("my-proj.v2"))
 
-    def test_installed_kinds_uses_path(self):
-        with mock.patch("shutil.which", lambda k: "/bin/" + k if k in ("pi", "claude") else None):
+    def setUp(self):
+        projects._cache[0] = 0.0
+
+    def test_installed_kinds_asks_the_user_shell(self):
+        with mock.patch("subprocess.run", return_value=mock.Mock(stdout="pi\nclaude\nnonsense\n")) as run:
             self.assertEqual(projects.installed_kinds(), ["pi", "claude"])
+            self.assertEqual(projects.installed_kinds(), ["pi", "claude"])
+            self.assertEqual(run.call_count, 1)  # second call comes from the cache
+
+    def test_installed_kinds_falls_back_to_service_path(self):
+        with mock.patch("subprocess.run", side_effect=OSError), \
+                mock.patch("shutil.which", lambda k: "/bin/" + k if k == "pi" else None):
+            self.assertEqual(projects.installed_kinds(), ["pi"])
 
 
 class CommandsTest(unittest.TestCase):

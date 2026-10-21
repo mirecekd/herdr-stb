@@ -2,17 +2,37 @@
 """Pure logic for /new: project list, search and the button screens."""
 import os
 import shutil
+import subprocess
+import time
 
 ROOT = os.path.expanduser("~/DEVEL")
 KINDS = ("pi", "claude", "codex", "gemini", "cursor", "opencode", "copilot", "kimi", "droid", "amp", "grok",
          "hermes", "kilo", "qwen", "letta", "devin", "cline", "kiro")  # as listed by `herdr agent --help`
 RECENT = 8
 SEARCH_MAX = 12
+CACHE_SECONDS = 300
+_cache = [0.0, []]
 
 
 def installed_kinds():
-    """Agent kinds whose executable is on PATH (herdr starts the canonical executable of the kind)."""
-    return [k for k in KINDS if shutil.which(k)]
+    """Agent kinds found on the PATH of the user's interactive shell.
+
+    The service runs under systemd with a bare PATH (no nvm, no ~/.local/bin), but Herdr starts the
+    agent in the user's shell. Ask that shell, and cache the answer: an interactive shell takes ~0.5 s.
+    """
+    if time.time() - _cache[0] < CACHE_SECONDS and _cache[1]:
+        return list(_cache[1])
+    found = []
+    try:
+        shell = os.environ.get("SHELL") or "/bin/bash"
+        out = subprocess.run([shell, "-ic", "for k in %s; do command -v \"$k\" >/dev/null 2>&1 && echo \"$k\"; done" % " ".join(KINDS)],
+                             capture_output=True, text=True, timeout=15, stdin=subprocess.DEVNULL).stdout
+        found = [k for k in out.split() if k in KINDS]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    found = found or [k for k in KINDS if shutil.which(k)]  # shortcut: the service PATH only, when the shell cannot be asked
+    _cache[0], _cache[1] = time.time(), found
+    return list(found)
 
 
 def scan(root=ROOT):
