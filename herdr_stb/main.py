@@ -7,12 +7,14 @@ import time
 
 from . import herdr, message, telegram
 from .bot import Bot
+from .events import Events
 from .tracker import Tracker
 
 STATE_DIR = os.path.expanduser("~/.config/herdr-stb")
 FLAG = os.path.join(STATE_DIR, "enabled")
 ENV_FILE = os.environ.get("HERDR_STB_ENV") or os.path.expanduser("~/.config/herdr/telegram.env")
-POLL = 2.0
+SAFETY_POLL = 30.0  # fallback when no event arrives
+SETTLE_POLL = 1.0   # while a pane is blocked but not yet confirmed
 
 
 def log(msg):
@@ -42,16 +44,23 @@ def run():
     tracker = Tracker()
     bot = Bot(ENV_FILE, lambda: os.path.exists(FLAG))
     threading.Thread(target=bot.poll_forever, daemon=True).start()
+    events = Events(log)
+    events.start()
     log("herdr-stb started, notifications %s" % ("on" if os.path.exists(FLAG) else "off"))
     while True:
         try:
-            for kind, agent, seconds in tracker.update(herdr.agents(), time.time()):
+            snapshot = herdr.agents()
+            events.sync(a["pane_id"] for a in snapshot)
+            for kind, agent, seconds in tracker.update(snapshot, time.time()):
                 if os.path.exists(FLAG):  # tracked even when off, so switching on does not replay old events
                     notify(bot, kind, agent, seconds)
         except Exception as e:
             log("poll failed: %s" % e)
         bot.tick()
-        time.sleep(POLL)
+        # events wake us at once; the timeout is the safety net (missed events, new panes, Herdr restart)
+        # and the tick for Tracker.settle, which needs a second look after a pane turns blocked
+        events.wake.wait(SAFETY_POLL if not tracker.pending() else SETTLE_POLL)
+        events.wake.clear()
 
 
 def main(argv):

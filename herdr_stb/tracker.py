@@ -8,6 +8,10 @@ class Tracker:
         self.settle = settle      # blocked must hold this long (filters flicker)
         self.panes = {}
 
+    def pending(self):
+        """True while a blocked pane waits out its settle time, i.e. we must look again soon."""
+        return any(s["status"] == "blocked" and not s["sent"] for s in self.panes.values())
+
     def update(self, agents, now):
         """Return [(kind, agent, seconds)] for kind in 'blocked', 'done'."""
         events = []

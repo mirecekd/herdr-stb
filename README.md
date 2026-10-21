@@ -52,7 +52,9 @@ Logs: `journalctl --user -u herdr-stb -f`.
 
 ## How it works
 
-The service polls `agent.list` on the Herdr socket every 2 seconds. A `blocked` state that holds for 2 seconds produces one message with the dialog read from the pane. A turn that ran for 20 seconds or more and then returned to idle or done produces one message with the last assistant text from the pi session file. Events seen while notifications are off are discarded, so switching on never replays old ones.
+The service subscribes to Herdr's event stream on its socket: one global subscription (pane created, agent detected, pane closed or exited) and one per pane with an agent (agent status changed). An event only wakes the main loop, which then reads a fresh `agent.list` snapshot, so a lost or duplicated event cannot corrupt state. A 30 second safety poll covers missed events, and subscriptions reconnect with back-off, which also covers a Herdr restart. New panes are subscribed on the next wake-up and closed ones are dropped.
+
+A `blocked` state that holds for 2 seconds produces one message with the question and buttons. A turn that ran for 20 seconds or more and then returned to idle or done produces one message with the last assistant text from the pi session file. Events seen while notifications are off are discarded, so switching on never replays old ones.
 
 ## Formatting
 

@@ -44,6 +44,14 @@ class TrackerTest(unittest.TestCase):
         ev = t.update([ag("idle")], 100)
         self.assertEqual([e[0] for e in ev], ["done"])
 
+    def test_pending_only_while_blocked_waits_to_settle(self):
+        t = Tracker(settle=2)
+        self.assertFalse(t.pending())
+        t.update([ag("blocked")], 10)
+        self.assertTrue(t.pending())
+        t.update([ag("blocked")], 13)  # reported now
+        self.assertFalse(t.pending())
+
     def test_unknown_is_ignored_and_closed_pane_forgotten(self):
         t = Tracker()
         t.update([ag("working")], 0)
