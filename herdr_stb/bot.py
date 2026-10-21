@@ -7,13 +7,19 @@ import sys
 import threading
 import time
 
-from . import telegram
+from . import flag, telegram
 from .ask import Ask
+from .windowbot import WindowBot
 
 STATE_DIR = os.path.expanduser("~/.config/herdr-stb")
 QDIR = os.path.join(STATE_DIR, "questions")
 ADIR = os.path.join(STATE_DIR, "answers")
 ACCEPT_WAIT = 8  # seconds pi gets to pick up an answer before we call it refused
+COMMANDS = [("windows", "List Herdr windows and open one"), ("on", "Turn notifications on"),
+            ("off", "Turn notifications off")]
+HELP = ("/windows - list Herdr windows, tap one to see it live and type into it\n"
+        "/on, /off - turn notifications on or off\n\n"
+        "A pending question has priority: tap its buttons or reply to its message.")
 
 
 def log(msg):
@@ -21,12 +27,12 @@ def log(msg):
 
 
 class Bot:
-    def __init__(self, env_file, enabled=lambda: True):
+    def __init__(self, env_file):
         self.env_file = env_file
-        self.enabled = enabled
         self.lock = threading.RLock()
         self.pending = {}
         self.offset = None
+        self.win = WindowBot(self.env, log)
 
     def env(self):
         return telegram.load_env(self.env_file)
@@ -91,6 +97,10 @@ class Bot:
                     self.finish(a, "Answered from Telegram.\n" + a.summary())
                 elif a.sent_at is not None and time.time() - a.sent_at > ACCEPT_WAIT:
                     self.finish(a, "pi did not accept the answer. Answer in the terminal.")
+            try:
+                self.win.render()
+            except Exception as e:  # a failing live view must not stop question handling
+                log("window view failed: %s" % e)
 
     def on_update(self, u):
         env = self.env()
@@ -100,13 +110,34 @@ class Bot:
             if cb and str((cb.get("message") or {}).get("chat", {}).get("id")) == chat:
                 self.on_press(env, cb)
             elif msg and str(msg["chat"]["id"]) == chat and msg.get("text"):
-                self.on_text(env, msg)
+                if not self.on_command(env, msg["text"]):
+                    self.on_text(env, msg)
+
+    def on_command(self, env, text):
+        """Reserved commands only; any other /text (e.g. /compact for an agent) is passed on as typing."""
+        cmd = text.split()[0].lstrip("/").split("@")[0].lower() if text.startswith("/") else ""
+        if cmd == "windows":
+            self.win.show_list()
+        elif cmd in ("on", "off"):
+            flag.set_on(cmd == "on")
+            telegram.send(env, "Notifications %s." % cmd)
+        elif cmd in ("start", "help"):
+            telegram.send(env, HELP)
+        else:
+            return False
+        return True
 
     def on_press(self, env, cb):
         data = cb.get("data", "")
         a = self.pending.get(data.split(":")[0])
         action, alert = "ignore", "Expired"
-        if a and a.sent_at is None:
+        if data.startswith("W:"):
+            try:
+                action, alert = "ignore", self.win.press(data)
+            except Exception as e:
+                log("window press failed: %s" % e)
+                alert = "Failed, see the log"
+        elif a and a.sent_at is None:
             try:
                 action, alert = a.press(data)
             except (ValueError, IndexError):
@@ -123,8 +154,12 @@ class Bot:
         reply = (msg.get("reply_to_message") or {}).get("message_id")
         a = next((x for x in open_asks if x.msg_id == reply), None) or (open_asks[0] if len(open_asks) == 1 else None)
         if a is None:
-            telegram.send(env, "Several questions are open, reply to the one you mean." if open_asks
-                          else "No open question to answer.")
+            if open_asks:
+                telegram.send(env, "Several questions are open, reply to the one you mean.")
+            else:
+                note = self.win.text(msg["text"])
+                if note:
+                    telegram.send(env, note)
             return
         action, _ = a.text(msg["text"])
         self.apply(a, action)
@@ -140,8 +175,7 @@ class Bot:
                 for u in telegram.call(env, "getUpdates", params, timeout=40):
                     self.offset = u["update_id"] + 1
                     try:
-                        if self.enabled():
-                            self.on_update(u)
+                        self.on_update(u)
                     except Exception as e:
                         log("update failed: %s" % e)
             except Exception as e:

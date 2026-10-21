@@ -5,13 +5,11 @@ import sys
 import threading
 import time
 
-from . import herdr, message, telegram
-from .bot import Bot
+from . import flag, herdr, message, telegram
+from .bot import COMMANDS, Bot
 from .events import Events
 from .tracker import Tracker
 
-STATE_DIR = os.path.expanduser("~/.config/herdr-stb")
-FLAG = os.path.join(STATE_DIR, "enabled")
 ENV_FILE = os.environ.get("HERDR_STB_ENV") or os.path.expanduser("~/.config/herdr/telegram.env")
 SAFETY_POLL = 30.0  # fallback when no event arrives
 SETTLE_POLL = 1.0   # while a pane is blocked but not yet confirmed
@@ -42,17 +40,21 @@ def notify(bot, kind, agent, seconds):
 
 def run():
     tracker = Tracker()
-    bot = Bot(ENV_FILE, lambda: os.path.exists(FLAG))
+    bot = Bot(ENV_FILE)
+    try:
+        telegram.set_commands(telegram.load_env(ENV_FILE), COMMANDS)
+    except Exception as e:  # the menu is a convenience, the service works without it
+        log("setMyCommands failed: %s" % e)
     threading.Thread(target=bot.poll_forever, daemon=True).start()
     events = Events(log)
     events.start()
-    log("herdr-stb started, notifications %s" % ("on" if os.path.exists(FLAG) else "off"))
+    log("herdr-stb started, notifications %s" % ("on" if flag.is_on() else "off"))
     while True:
         try:
             snapshot = herdr.agents()
             events.sync(a["pane_id"] for a in snapshot)
             for kind, agent, seconds in tracker.update(snapshot, time.time()):
-                if os.path.exists(FLAG):  # tracked even when off, so switching on does not replay old events
+                if flag.is_on():  # tracked even when off, so switching on does not replay old events
                     notify(bot, kind, agent, seconds)
         except Exception as e:
             log("poll failed: %s" % e)
@@ -67,16 +69,11 @@ def main(argv):
     cmd = argv[0] if argv else "status"
     if cmd == "run":
         run()
-    elif cmd == "on":
-        os.makedirs(STATE_DIR, exist_ok=True)
-        open(FLAG, "a").close()
-        print("notifications on")
-    elif cmd == "off":
-        if os.path.exists(FLAG):
-            os.remove(FLAG)
-        print("notifications off")
+    elif cmd in ("on", "off"):
+        flag.set_on(cmd == "on")
+        print("notifications", cmd)
     elif cmd == "status":
-        print("notifications", "on" if os.path.exists(FLAG) else "off")
+        print("notifications", "on" if flag.is_on() else "off")
     elif cmd == "test":
         telegram.send(telegram.load_env(ENV_FILE), "herdr-stb: test message")
         print("sent")

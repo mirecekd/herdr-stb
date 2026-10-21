@@ -20,6 +20,19 @@ class MdHtmlTest(unittest.TestCase):
         self.assertEqual(md_to_html("[doc](https://x.cz/a?b=1)"), '<a href="https://x.cz/a?b=1">doc</a>')
         self.assertEqual(md_to_html("[bad](javascript:alert(1))"), "[bad](javascript:alert(1))")
 
+    def test_table_becomes_aligned_pre_block(self):
+        md = "Pred\n\n| Funkce | Stav |\n|---|:-:|\n| **/windows** | ok |\n| `/on` | vypnuto |\n\nPo"
+        out = md_to_html(md)
+        self.assertEqual(out, "Pred\n\n<pre>Funkce    Stav\n--------  -------\n/windows  ok\n/on       vypnuto</pre>\n\nPo")
+
+    def test_table_cells_are_escaped_and_ragged_rows_padded(self):
+        out = md_to_html("| a | b |\n|--|--|\n| <x> |\n| 1 | 2 | 3 |")
+        self.assertIn("&lt;x&gt;", out)
+        self.assertEqual(out.count("\n"), 3)
+
+    def test_pipe_without_separator_is_not_a_table(self):
+        self.assertEqual(md_to_html("a | b\nc | d"), "a | b\nc | d")
+
     def test_plain_text_and_stray_markers_unchanged(self):
         self.assertEqual(md_to_html("ASKS: proj [1/2]\n1. Ano"), "ASKS: proj [1/2]\n1. Ano")
         self.assertEqual(md_to_html("jen ** jedna"), "jen ** jedna")

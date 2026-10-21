@@ -39,6 +39,15 @@ herdr-stb test      # sends a test message
 herdr-stb on        # switch notifications on
 ```
 
+## Telegram commands
+
+| Command | Meaning |
+|---|---|
+| `/windows` | list every agent window as a button matrix; tap one to open a live view, then type to send text into it |
+| `/on`, `/off` | turn notifications on or off |
+
+The live view shows the last lines of the window and is edited about every 2 seconds. Buttons below it send Up, Down, Enter, Esc. Reading and typing use only generic Herdr calls, so it works with any agent Herdr recognizes. A pending question has priority over typing.
+
 ## Commands
 
 | Command | Meaning |
@@ -58,7 +67,7 @@ A `blocked` state that holds for 2 seconds produces one message with the questio
 
 ## Formatting
 
-Agent text is markdown. It is converted to the HTML subset Telegram supports (bold, headings as bold, inline code, code blocks, links). If Telegram rejects a message's markup, it is resent as plain text.
+Agent text is markdown. It is converted to the HTML subset Telegram supports (bold, headings as bold, inline code, code blocks, links; tables become aligned monospace blocks). If Telegram rejects a message's markup, it is resent as plain text.
 
 ## Known limits
 

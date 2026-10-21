@@ -63,3 +63,15 @@ def edit(env, message_id, text, rows=None):
     except RuntimeError as e:
         if "HTTP 400" not in str(e):  # 400 here means "message is not modified", which is harmless
             raise
+
+
+def delete(env, message_id):
+    try:
+        call(env, "deleteMessage", {"chat_id": env["TELEGRAM_CHAT_ID"], "message_id": message_id})
+    except RuntimeError:
+        pass  # already deleted or too old, nothing to clean up
+
+
+def set_commands(env, commands):
+    """Register the slash-command menu next to the text field."""
+    call(env, "setMyCommands", {"commands": [{"command": c, "description": d} for c, d in commands]})

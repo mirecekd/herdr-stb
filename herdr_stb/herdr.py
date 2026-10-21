@@ -36,3 +36,16 @@ def workspaces():
 
 def screen(pane_id):
     return rpc("pane.read", {"pane_id": pane_id, "source": "visible"})["read"]["text"]
+
+
+def read(pane_id, lines=80):
+    return rpc("pane.read", {"pane_id": pane_id, "source": "recent_unwrapped", "lines": lines})["read"]["text"]
+
+
+def prompt(pane_id, text):
+    """Type text into the agent in this pane and press Enter. Herdr refuses while the agent waits at a dialog."""
+    rpc("agent.prompt", {"target": pane_id, "text": text})
+
+
+def keys(pane_id, key_list):
+    rpc("agent.send_keys", {"target": pane_id, "keys": list(key_list)})
