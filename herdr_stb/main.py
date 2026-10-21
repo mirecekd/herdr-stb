@@ -2,9 +2,11 @@
 """Service loop and command line: run | on | off | status | test."""
 import os
 import sys
+import threading
 import time
 
 from . import herdr, message, telegram
+from .bot import Bot
 from .tracker import Tracker
 
 STATE_DIR = os.path.expanduser("~/.config/herdr-stb")
@@ -17,15 +19,18 @@ def log(msg):
     print(msg, file=sys.stderr, flush=True)
 
 
-def notify(kind, agent, seconds):
+def notify(bot, kind, agent, seconds):
     try:
+        label = herdr.workspaces().get(agent["workspace_id"], "")
         if kind == "blocked":
+            if bot.offer(agent, label):  # interactive message with buttons
+                log("offered %s" % agent["pane_id"])
+                return
             detail = message.dialog_text(herdr.screen(agent["pane_id"]))
         else:
             session = agent.get("agent_session") or {}
             since = time.time() - seconds
             detail = message.last_assistant_text(session["value"], since) if session.get("kind") == "path" else ""
-        label = herdr.workspaces().get(agent["workspace_id"], "")
         # shortcut: no retry if Telegram is down, add a queue when losing a message matters
         telegram.send(telegram.load_env(ENV_FILE), message.build(kind, agent, label, seconds, detail))
         log("sent %s %s" % (kind, agent["pane_id"]))
@@ -35,14 +40,17 @@ def notify(kind, agent, seconds):
 
 def run():
     tracker = Tracker()
+    bot = Bot(ENV_FILE, lambda: os.path.exists(FLAG))
+    threading.Thread(target=bot.poll_forever, daemon=True).start()
     log("herdr-stb started, notifications %s" % ("on" if os.path.exists(FLAG) else "off"))
     while True:
         try:
             for kind, agent, seconds in tracker.update(herdr.agents(), time.time()):
                 if os.path.exists(FLAG):  # tracked even when off, so switching on does not replay old events
-                    notify(kind, agent, seconds)
+                    notify(bot, kind, agent, seconds)
         except Exception as e:
             log("poll failed: %s" % e)
+        bot.tick()
         time.sleep(POLL)
 
 

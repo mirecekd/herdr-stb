@@ -1,7 +1,7 @@
 # herdr_stb/telegram.py
-"""Tiny Telegram Bot API sender and env-file reader (stdlib only)."""
+"""Tiny Telegram Bot API client and env-file reader (stdlib only)."""
 import json
-import urllib.parse
+import urllib.error
 import urllib.request
 
 LIMIT = 3900  # Telegram hard limit is 4096 characters
@@ -18,15 +18,33 @@ def load_env(path):
     return env
 
 
-def send(env, text):
-    """Send text to the configured chat. Raises on failure; never includes the token in errors."""
-    data = urllib.parse.urlencode({"chat_id": env["TELEGRAM_CHAT_ID"], "text": text[:LIMIT]}).encode()
-    url = "https://api.telegram.org/bot%s/sendMessage" % env["TELEGRAM_BOT_TOKEN"]
+def call(env, method, params, timeout=15):
+    """Call a Bot API method. Errors never contain the URL, so the token cannot leak into logs."""
+    req = urllib.request.Request(
+        "https://api.telegram.org/bot%s/%s" % (env["TELEGRAM_BOT_TOKEN"], method),
+        json.dumps(params).encode(), {"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(url, data, timeout=15) as r:
-            if not json.load(r).get("ok"):
-                raise RuntimeError("telegram rejected the message")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.load(r)["result"]
     except urllib.error.HTTPError as e:
-        raise RuntimeError("telegram HTTP %s" % e.code) from None
+        raise RuntimeError("telegram %s: HTTP %s" % (method, e.code)) from None
     except urllib.error.URLError as e:
-        raise RuntimeError("telegram unreachable: %s" % e.reason) from None
+        raise RuntimeError("telegram %s unreachable: %s" % (method, e.reason)) from None
+
+
+def send(env, text, rows=None):
+    p = {"chat_id": env["TELEGRAM_CHAT_ID"], "text": text[:LIMIT]}
+    if rows:
+        p["reply_markup"] = {"inline_keyboard": rows}
+    return call(env, "sendMessage", p)["message_id"]
+
+
+def edit(env, message_id, text, rows=None):
+    """Replace a message; without rows the keyboard is removed."""
+    p = {"chat_id": env["TELEGRAM_CHAT_ID"], "message_id": message_id, "text": text[:LIMIT],
+         "reply_markup": {"inline_keyboard": rows or []}}
+    try:
+        call(env, "editMessageText", p)
+    except RuntimeError as e:
+        if "HTTP 400" not in str(e):  # 400 also means "message is not modified", which is harmless
+            raise

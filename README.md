@@ -2,7 +2,7 @@
 
 Herdr simple Telegram bridge. A small systemd user service that watches every coding agent running in [Herdr](https://herdr.dev) and sends you a Telegram message in two cases only:
 
-- an agent is waiting for your answer (blocked), with the question text,
+- an agent is waiting for your answer (blocked): you get the question with buttons, tap an option or reply with your own text, and the answer goes straight back to pi,
 - an agent finished a longer piece of work (done), with its final message.
 
 Everything else stays quiet. Notifications are off until you switch them on.
@@ -56,10 +56,11 @@ The service polls `agent.list` on the Herdr socket every 2 seconds. A `blocked` 
 
 ## Known limits
 
-- Herdr marks a pane `blocked` only if the agent reports it. For pi, the ask-user tool must emit `herdr:blocked`. With `@juicesharp/rpiv-ask-user-question` this needs a small bridge extension, see `examples/herdr-ask-user-bridge.ts`.
+- Herdr marks a pane `blocked` only if the agent reports it. For pi, the ask-user tool must emit `herdr:blocked`. With `@juicesharp/rpiv-ask-user-question` this needs a small bridge extension, see `examples/herdr-stb-bridge.ts` (copy it to `~/.pi/agent/extensions/`). The same file carries the questions to the service and the answers back.
 - The final message is read only for pi sessions. Other agents get the header without text.
 - A message lost while Telegram is unreachable is not retried.
-- Replying from Telegram is not implemented.
+- Free text is sent as an answer only through the "Type something" path of ask-user (a reply to the question message, or any message while exactly one question is open).
+- Questions asked inside `/lanes` child runs are not reachable (they live on the child's own event bus).
 
 ## Tests
 
