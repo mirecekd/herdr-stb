@@ -44,6 +44,7 @@ herdr-stb on        # switch notifications on
 | Command | Meaning |
 |---|---|
 | `/windows` | list every agent window as a button matrix; tap one to open a live view, then type to send text into it |
+| `/new` | pick a project from `~/DEVEL` (running ones first, or search by name), pick an agent, and start it in a new Herdr workspace; you are attached to it right away |
 | `/on`, `/off` | turn notifications on or off |
 
 The live view shows the last lines of the window and is edited about every 2 seconds. Buttons below it send Up, Down, Enter, Esc. Reading and typing use only generic Herdr calls, so it works with any agent Herdr recognizes. A pending question has priority over typing.
@@ -71,6 +72,8 @@ Agent text is markdown. It is converted to the HTML subset Telegram supports (bo
 
 ## Known limits
 
+- `/new` takes about 10 seconds because the agent has to start. It runs in the background, so the bot stays usable. A start that fails waits up to 45 seconds, then removes the empty workspace and says so.
+- `/new` offers agents whose executable is on `PATH`, but only `pi` was tried end to end. Others are started by Herdr's own `agent start`.
 - Herdr marks a pane `blocked` only if the agent reports it. For pi, the ask-user tool must emit `herdr:blocked`. With `@juicesharp/rpiv-ask-user-question` this needs a small bridge extension, see `examples/herdr-stb-bridge.ts` (copy it to `~/.pi/agent/extensions/`). The same file carries the questions to the service and the answers back.
 - The final message is read only for pi sessions. Other agents get the header without text.
 - A message lost while Telegram is unreachable is not retried.

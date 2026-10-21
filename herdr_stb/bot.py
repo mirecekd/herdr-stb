@@ -7,19 +7,15 @@ import sys
 import threading
 import time
 
-from . import flag, telegram
+from . import commands, telegram
 from .ask import Ask
+from .newbot import NewBot
 from .windowbot import WindowBot
 
 STATE_DIR = os.path.expanduser("~/.config/herdr-stb")
 QDIR = os.path.join(STATE_DIR, "questions")
 ADIR = os.path.join(STATE_DIR, "answers")
 ACCEPT_WAIT = 8  # seconds pi gets to pick up an answer before we call it refused
-COMMANDS = [("windows", "List Herdr windows and open one"), ("on", "Turn notifications on"),
-            ("off", "Turn notifications off")]
-HELP = ("/windows - list Herdr windows, tap one to see it live and type into it\n"
-        "/on, /off - turn notifications on or off\n\n"
-        "A pending question has priority: tap its buttons or reply to its message.")
 
 
 def log(msg):
@@ -33,6 +29,7 @@ class Bot:
         self.pending = {}
         self.offset = None
         self.win = WindowBot(self.env, log)
+        self.new = NewBot(self.env, log, self.win.attach, time.time)
 
     def env(self):
         return telegram.load_env(self.env_file)
@@ -110,32 +107,19 @@ class Bot:
             if cb and str((cb.get("message") or {}).get("chat", {}).get("id")) == chat:
                 self.on_press(env, cb)
             elif msg and str(msg["chat"]["id"]) == chat and msg.get("text"):
-                if not self.on_command(env, msg["text"]):
+                if not commands.handle(env, commands.parse(msg["text"]), self.win, self.new):
                     self.on_text(env, msg)
-
-    def on_command(self, env, text):
-        """Reserved commands only; any other /text (e.g. /compact for an agent) is passed on as typing."""
-        cmd = text.split()[0].lstrip("/").split("@")[0].lower() if text.startswith("/") else ""
-        if cmd == "windows":
-            self.win.show_list()
-        elif cmd in ("on", "off"):
-            flag.set_on(cmd == "on")
-            telegram.send(env, "Notifications %s." % cmd)
-        elif cmd in ("start", "help"):
-            telegram.send(env, HELP)
-        else:
-            return False
-        return True
 
     def on_press(self, env, cb):
         data = cb.get("data", "")
         a = self.pending.get(data.split(":")[0])
         action, alert = "ignore", "Expired"
-        if data.startswith("W:"):
+        if data.startswith(("W:", "N:")):
+            handler = self.win if data.startswith("W:") else self.new
             try:
-                action, alert = "ignore", self.win.press(data)
+                action, alert = "ignore", handler.press(data)
             except Exception as e:
-                log("window press failed: %s" % e)
+                log("button failed: %s" % e)
                 alert = "Failed, see the log"
         elif a and a.sent_at is None:
             try:
@@ -156,7 +140,7 @@ class Bot:
         if a is None:
             if open_asks:
                 telegram.send(env, "Several questions are open, reply to the one you mean.")
-            else:
+            elif not self.new.text(msg["text"]):
                 note = self.win.text(msg["text"])
                 if note:
                     telegram.send(env, note)

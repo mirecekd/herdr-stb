@@ -6,7 +6,8 @@ import threading
 import time
 
 from . import flag, herdr, message, telegram
-from .bot import COMMANDS, Bot
+from .bot import Bot
+from .commands import COMMANDS
 from .events import Events
 from .tracker import Tracker
 
