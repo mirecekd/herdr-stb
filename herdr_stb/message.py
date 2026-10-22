@@ -22,7 +22,7 @@ def dialog_text(screen):
     lines = [x for x in block if x.strip()]
     if not lines:  # no recognisable dialog: fall back to the last lines of the screen
         lines = [x for x in screen.splitlines() if x.strip()][-12:]
-    return "\n".join(lines)[:1500]
+    return "\n".join(lines)[-3000:]  # the question is at the bottom of the dialog, keep the end
 
 
 def last_assistant_text(session_path, since):
@@ -43,7 +43,7 @@ def last_assistant_text(session_path, since):
             continue
         text = "\n".join(c.get("text", "") for c in m.get("content", []) if c.get("type") == "text").strip()
         if text:
-            return text[:1200]
+            return text
     return ""
 
 

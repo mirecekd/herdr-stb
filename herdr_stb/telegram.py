@@ -5,8 +5,8 @@ import urllib.error
 import urllib.request
 
 from .mdhtml import md_to_html
+from .split import fits, parts
 
-LIMIT = 3900  # Telegram hard limit is 4096 characters
 
 
 def load_env(path):
@@ -36,7 +36,6 @@ def call(env, method, params, timeout=15):
 
 def _with_fallback(env, method, params, text):
     """Send formatted (HTML); if Telegram rejects the markup, resend the same text as plain."""
-    text = text[:LIMIT]
     html_text = md_to_html(text)
     if len(html_text) <= 4096:
         try:
@@ -48,14 +47,24 @@ def _with_fallback(env, method, params, text):
 
 
 def send(env, text, rows=None):
+    """Send text, split into several messages when it is too long. Buttons go on the last one.
+
+    Returns the id of the last message, which is the one a later edit() should target.
+    """
+    chunks = parts(text)
+    for chunk in chunks[:-1]:
+        _with_fallback(env, "sendMessage", {"chat_id": env["TELEGRAM_CHAT_ID"]}, chunk)
     p = {"chat_id": env["TELEGRAM_CHAT_ID"]}
     if rows:
         p["reply_markup"] = {"inline_keyboard": rows}
-    return _with_fallback(env, "sendMessage", p, text)["message_id"]
+    return _with_fallback(env, "sendMessage", p, chunks[-1] if chunks else "(empty)")["message_id"]
 
 
 def edit(env, message_id, text, rows=None):
-    """Replace a message; without rows the keyboard is removed."""
+    """Replace a message; without rows the keyboard is removed. One message only, so an overlong
+    text keeps its end (the live view and questions put the important part last)."""
+    if not fits(text):
+        text = "...\n" + text[-3000:]
     p = {"chat_id": env["TELEGRAM_CHAT_ID"], "message_id": message_id,
          "reply_markup": {"inline_keyboard": rows or []}}
     try:
