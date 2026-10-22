@@ -66,6 +66,27 @@ The service subscribes to Herdr's event stream on its socket: one global subscri
 
 A `blocked` state that holds for 2 seconds produces one message with the question and buttons. A turn that ran for 20 seconds or more and then returned to idle or done produces one message with the last assistant text from the pi session file. Events seen while notifications are off are discarded, so switching on never replays old ones.
 
+## Surviving a Herdr restart
+
+Tested with a real `herdr server stop` and start, with six pi agents running:
+
+- The service keeps running (it is a separate systemd unit). It logs a few `events: ... retry in 2s/4s/8s` lines while Herdr is down, reconnects by itself when the socket is back, and needs no restart or action.
+- The event subscriptions are re-created automatically, because the service re-reads the agent list on every reconnect.
+- With `resume_agents_on_restore = true` in the `[session]` section of `~/.config/herdr/config.toml`, Herdr restored 5 of 6 agents into their own pi sessions, with the same session files. The sixth pane came back as an empty shell (its session file is intact; resume it with `pi --resume` in that folder). The cause was not found in the Herdr logs.
+- `pane_history = true` (section `[experimental]`) was set too. It is an experimental Herdr option.
+
+An attached `/windows` view lives only in the service's memory, so it is dropped when the service restarts. Pending questions are written to `~/.config/herdr-stb/questions/` and removed when pi exits or the question is closed.
+
+Suggested config:
+
+```toml
+[session]
+resume_agents_on_restore = true
+
+[experimental]
+pane_history = true
+```
+
 ## Formatting
 
 Agent text is markdown. It is converted to the HTML subset Telegram supports (bold, headings as bold, inline code, code blocks, links; tables become aligned monospace blocks). If Telegram rejects a message's markup, it is resent as plain text.
