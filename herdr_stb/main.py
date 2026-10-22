@@ -32,7 +32,7 @@ def notify(bot, kind, agent, seconds):
             session = agent.get("agent_session") or {}
             since = time.time() - seconds
             detail = message.last_assistant_text(session["value"], since) if session.get("kind") == "path" else ""
-        # shortcut: no retry if Telegram is down, add a queue when losing a message matters
+        # no retry if Telegram is down; add a queue if losing a message matters
         telegram.send(telegram.load_env(ENV_FILE), message.build(kind, agent, label, seconds, detail))
         log("sent %s %s" % (kind, agent["pane_id"]))
     except Exception as e:  # keep the service alive whatever one notification does

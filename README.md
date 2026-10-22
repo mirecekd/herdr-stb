@@ -2,8 +2,8 @@
 
 Herdr simple Telegram bridge. A small systemd user service that watches every coding agent running in [Herdr](https://herdr.dev) and sends you a Telegram message in two cases only:
 
-- an agent is waiting for your answer (blocked): you get the question with buttons, tap an option or reply with your own text, and the answer goes straight back to pi,
-- an agent finished a longer piece of work (done), with its final message.
+- an agent is waiting for your answer (blocked), with the question text; for pi with the ask-user tool you also get buttons, and your tap or reply goes straight back to the agent,
+- an agent finished a longer piece of work (done), with its final message (pi) or a short header (other agents).
 
 Everything else stays quiet. Notifications are off until you switch them on.
 
@@ -16,7 +16,7 @@ Everything else stays quiet. Notifications are off until you switch them on.
 ## Requirements
 
 - Herdr 0.9 or newer with its pi integration (`herdr integration install pi`)
-- Python 3.9 or newer, no extra packages
+- Python 3, standard library only (developed on 3.14)
 - Linux with `systemd --user`
 - A Telegram bot token and your chat ID
 
@@ -35,6 +35,7 @@ Install and start the service:
 
 ```
 ./install.sh
+cp examples/herdr-stb-bridge.ts ~/.pi/agent/extensions/   # pi only, enables buttons and the blocked state
 herdr-stb test      # sends a test message
 herdr-stb on        # switch notifications on
 ```
@@ -44,7 +45,7 @@ herdr-stb on        # switch notifications on
 | Command | Meaning |
 |---|---|
 | `/windows` | list every agent window as a button matrix; tap one to open a live view, then type to send text into it |
-| `/new` | pick a project from `~/DEVEL` (running ones first, or search by name), pick an agent, and start it in a new Herdr workspace; you are attached to it right away |
+| `/new` | pick a project from `~/DEVEL` (the `ROOT` constant in `herdr_stb/projects.py`) (running ones first, or search by name), pick an agent, and start it in a new Herdr workspace; you are attached to it right away |
 | `/on`, `/off` | turn notifications on or off |
 
 The live view shows the last lines of the window and is edited about every 2 seconds. Buttons below it send Up, Down, Enter, Esc. Reading and typing use only generic Herdr calls, so it works with any agent Herdr recognizes. A pending question has priority over typing.
@@ -88,12 +89,12 @@ Agent text is markdown. It is converted to the HTML subset Telegram supports (bo
 ## Known limits
 
 - `/new` takes about 10 seconds because the agent has to start. It runs in the background, so the bot stays usable. A start that fails waits up to 45 seconds, then removes the empty workspace and says so.
-- `/new` offers agents whose executable is on `PATH`, but only `pi` was tried end to end. Others are started by Herdr's own `agent start`.
-- Herdr marks a pane `blocked` only if the agent reports it. For pi, the ask-user tool must emit `herdr:blocked`. With `@juicesharp/rpiv-ask-user-question` this needs a small bridge extension, see `examples/herdr-stb-bridge.ts` (copy it to `~/.pi/agent/extensions/`). The same file carries the questions to the service and the answers back.
+- `/new` offers the agents found on the `PATH` of your interactive shell. The list of known agent kinds is fixed in `herdr_stb/projects.py` and follows `herdr agent --help`. Only `pi` was tested end to end; the others are started by Herdr's own `agent start`.
+- Herdr marks a pane `blocked` only if the agent reports it. The buttons and the `blocked` state for pi need the bridge extension `examples/herdr-stb-bridge.ts` (copy it to `~/.pi/agent/extensions/`); it works with `@juicesharp/rpiv-ask-user-question`. Without it, pi panes that ask a question are not reported as blocked. Panes already running need a restart or `/reload` after you copy it.
 - The final message is read only for pi sessions. Other agents get the header without text.
 - A message lost while Telegram is unreachable is not retried.
-- Free text is sent as an answer only through the "Type something" path of ask-user (a reply to the question message, or any message while exactly one question is open).
-- Questions asked inside `/lanes` child runs are not reachable (they live on the child's own event bus).
+- Free text answers a question when you reply to its message, or when exactly one question is open. With several open, reply to the one you mean.
+- Questions asked by sub-agents that run on their own event bus (for example `/lanes` child runs) are not reachable.
 
 ## Tests
 

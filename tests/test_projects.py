@@ -9,7 +9,7 @@ from herdr_stb import commands, projects
 
 
 class ProjectsTest(unittest.TestCase):
-    P = [("alpha", True), ("beta", False), ("tumor", True), ("tumor-docs", False), ("sw-tumor", True), ("zeta", True)]
+    P = [("alpha", True), ("beta", False), ("zeta", True), ("alpha-docs", False), ("sw-alpha", True), ("alpha2", True)]
 
     def test_scan_newest_first_and_marks_git(self):
         with tempfile.TemporaryDirectory() as d:
@@ -24,16 +24,16 @@ class ProjectsTest(unittest.TestCase):
     def test_recent_puts_running_first_then_git_only(self):
         r = projects.recent(self.P, {"zeta", "beta"})
         self.assertEqual([n for n, _ in r][:2], ["beta", "zeta"])
-        self.assertNotIn("tumor-docs", [n for n, _ in r])  # not git, not running
+        self.assertNotIn("alpha-docs", [n for n, _ in r])  # not git, not running
 
     def test_recent_is_capped(self):
         many = [("p%d" % i, True) for i in range(30)]
         self.assertEqual(len(projects.recent(many, set())), projects.RECENT)
 
     def test_search_prefix_first_then_git_then_short(self):
-        self.assertEqual([n for n, _ in projects.search(self.P, "tum")], ["tumor", "tumor-docs", "sw-tumor"])
+        self.assertEqual([n for n, _ in projects.search(self.P, "alp")], ["alpha", "alpha2", "alpha-docs", "sw-alpha"])
         self.assertEqual(projects.search(self.P, "  "), [])
-        self.assertEqual(projects.search(self.P, "TUMOR")[0][0], "tumor")
+        self.assertEqual(projects.search(self.P, "ALPHA2")[0][0], "alpha2")
 
     def test_search_is_capped(self):
         many = [("app%d" % i, True) for i in range(40)]

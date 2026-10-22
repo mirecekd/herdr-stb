@@ -30,7 +30,7 @@ def installed_kinds():
         found = [k for k in out.split() if k in KINDS]
     except (OSError, subprocess.SubprocessError):
         pass
-    found = found or [k for k in KINDS if shutil.which(k)]  # shortcut: the service PATH only, when the shell cannot be asked
+    found = found or [k for k in KINDS if shutil.which(k)]  # last resort: the service PATH, when the shell cannot be asked
     _cache[0], _cache[1] = time.time(), found
     return list(found)
 

@@ -1,4 +1,4 @@
-// examples/herdr-stb-bridge.ts  (copy to ~/.pi/agent/extensions/, replaces herdr-ask-user-bridge.ts)
+// examples/herdr-stb-bridge.ts  (copy to ~/.pi/agent/extensions/)
 // Connects @juicesharp/rpiv-ask-user-question to Herdr and to herdr-stb:
 //  - a pane waiting for an answer shows as "blocked" in Herdr (emits herdr:blocked),
 //  - the open questions are written to ~/.config/herdr-stb/questions/ so the service can offer them in Telegram,

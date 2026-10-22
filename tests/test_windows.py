@@ -9,23 +9,23 @@ def ag(pane, ws, st="idle", cwd="/x/proj", kind="pi"):
 
 
 class WindowsTest(unittest.TestCase):
-    WS = {"w1": "tumor", "w2": "machr"}
+    WS = {"w1": "proj-a", "w2": "proj-b"}
 
     def test_label_is_workspace_when_unique(self):
         n = windows.labels([ag("w1:p1", "w1"), ag("w2:p1", "w2")], self.WS)
-        self.assertEqual(n, {"w1:p1": "tumor", "w2:p1": "machr"})
+        self.assertEqual(n, {"w1:p1": "proj-a", "w2:p1": "proj-b"})
 
     def test_labels_disambiguate_by_folder_then_pane(self):
         n = windows.labels([ag("w1:p1", "w1", cwd="/a/x"), ag("w1:p2", "w1", cwd="/a/y")], self.WS)
-        self.assertEqual(sorted(n.values()), ["tumor/x", "tumor/y"])
+        self.assertEqual(sorted(n.values()), ["proj-a/x", "proj-a/y"])
         n = windows.labels([ag("w1:p1", "w1", cwd="/a/x"), ag("w1:p2", "w1", cwd="/b/x")], self.WS)
-        self.assertEqual(sorted(n.values()), ["tumor/x w1:p1", "tumor/x w1:p2"])
+        self.assertEqual(sorted(n.values()), ["proj-a/x w1:p1", "proj-a/x w1:p2"])
 
     def test_matrix_two_per_row_with_status_and_kind(self):
         text, rows = windows.matrix([ag("w1:p1", "w1", "working", kind="claude"), ag("w2:p1", "w2", "blocked"),
                                      ag("w2:p2", "w2", cwd="/q/z")], self.WS)
         self.assertEqual([len(r) for r in rows], [2, 1])
-        self.assertEqual(rows[0][0]["text"], "tumor (claude) - working")
+        self.assertEqual(rows[0][0]["text"], "proj-a (claude) - working")
         self.assertEqual(rows[0][0]["callback_data"], "W:a:w1:p1")
         self.assertIn("3", text)
 
